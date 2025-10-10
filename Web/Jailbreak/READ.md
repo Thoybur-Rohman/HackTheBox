@@ -20,8 +20,6 @@ If a server is not careful, an attacker can say:
 
 > “Hey XML parser, please read this file and put it right here.”
 
-And the server will do it! 😱
-
 That’s what we do in this challenge.
 
 We’ll define an entity that points to the flag file: `file:///flag.txt`.
