@@ -34,7 +34,8 @@ A basic web app shows the current time based on a "format" you pick. Your goal: 
 
 ### 5. Steal the Flag
 - **Do**: From the file list, spot `../flag` (parent folder). Swap payload to `'; cat ../flag` (reads file). Full URL: `http://YOUR_IP:PORT?format=';%20cat%20../flag%20`. Reload—flag appears (like `HTB{time_to_inject}`)! Copy and submit to HTB.  
-- **Why?** `cat` reads files, `../` goes up one folder. Now you've fully hacked it—like opening the treasure chest. This wins the challenge.
+- **Why?** `cat` reads files, `../` goes up one folder. Now you've fully hacked it—like opening the treasure chest. This wins the challenge.<img width="1803" height="634" alt="image" src="https://github.com/user-attachments/assets/68e5248a-bbcd-4fb5-811a-56d36549d8e4" />
+
 
 ## The Bug: Command Injection
 - **What?** Dirty input runs your code via shell (e.g., read files).  
